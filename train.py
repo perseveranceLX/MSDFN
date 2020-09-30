@@ -4,12 +4,14 @@ import os
 import argparse
 import time
 import dataloader
-import model_depth
+import model_depth_Drelu
 from SSIM import SSIM
 import torchvision
 import matplotlib.pyplot as plt
 import torch.nn as nn
 import numpy as np
+#from PSNR import PSNR
+
 def weights_init(m):
     classname = m.__class__.__name__
     if classname.find('Conv') != -1:
@@ -20,11 +22,11 @@ def weights_init(m):
 
 def train(config):
 
-    dehaze_net = model_depth.DEPTHV2().cuda()
+    dehaze_net = model_depth_Drelu.MSDFN().cuda()
     #dehaze_net.apply(weights_init)
-    dehaze_net.load_state_dict(torch.load("trained_model/indoor/relu/Epoch19.pth"))
+    dehaze_net.load_state_dict(torch.load("/home/amax/share/FGD/MSDFN/trained_model/outdoor/drelu-A/Epoch0.pth"))
     train_dataset = dataloader.dehazing_loader(config.orig_images_path,config.hazy_images_path,config.label_images_path)
-    val_dataset = dataloader.dehazing_loader(config.orig_images_path,config.hazy_images_path,config.label_images_path, mode="val")
+    val_dataset = dataloader.dehazing_loader(config.orig_images_path_val,config.hazy_images_path_val,config.label_images_path_val, mode="val")
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=config.train_batch_size, shuffle=True, num_workers=config.num_workers, pin_memory=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=config.val_batch_size, shuffle=False,num_workers=config.num_workers, pin_memory=True)
 
@@ -40,25 +42,25 @@ def train(config):
     Iters = 0                                                                                                           #计数损失曲线用
     indexX = []                                                                                                    #计数损失曲线用
     indexY = []
-    for epoch in range(20,config.num_epochs):
-        # if epoch == 0:
-        #     config.lr = 0.0002
-        # elif epoch == 1:
-        #     config.lr = 0.0001
-        # elif epoch > 1 and epoch <= 2:
-        #     config.lr = 0.00009
-        # elif epoch > 2 and epoch <= 3:
-        #     config.lr = 0.00006
-        # elif epoch > 3 and epoch <= 4:
-        #     config.lr = 0.00003
-        # elif epoch > 4 and epoch <= 5:
-        #     config.lr = 0.00001
-        # elif epoch > 5 and epoch <= 6:
-        #     config.lr = 0.000006
-        # elif epoch > 6 and epoch <= 7:
-        #     config.lr = 0.000003
-        # elif epoch > 8 and epoch <= 9:
-        #     config.lr = 0.000001
+    for epoch in range(1,config.num_epochs):
+        if epoch == 0:
+            config.lr = 0.0001
+        elif epoch == 1:
+            config.lr = 0.00009
+        elif epoch >1 and epoch <=3:
+            config.lr = 0.00006
+        elif epoch >3 and epoch <=5:
+            config.lr = 0.00003
+        elif epoch >5 and epoch <=7:
+            config.lr = 0.00001
+        elif epoch >7 and epoch <=9:
+            config.lr = 0.000009
+        elif epoch >9 and epoch <=11:
+            config.lr = 0.000006
+        elif epoch >11 and epoch <=13:
+            config.lr = 0.000003
+        elif epoch >13:
+            config.lr = 0.000001
         optimizer = torch.optim.Adam(dehaze_net.parameters(), lr=config.lr)
         print("now lr == %f"%config.lr)
         print("*" * 80 + "第%i轮" % epoch + "*" * 80)
@@ -80,7 +82,7 @@ def train(config):
                 # indexY.append(iteration)
                 optimizer.zero_grad()
                 loss.backward()
-                #torch.nn.utils.clip_grad_norm(dehaze_net.parameters(), config.grad_clip_norm)
+                torch.nn.utils.clip_grad_norm(dehaze_net.parameters(), config.grad_clip_norm)
                 optimizer.step()
                 Iters += 1
                 if ((iteration + 1) % config.display_iter) == 0:
@@ -104,11 +106,12 @@ def train(config):
 
         #每个epoch完成后测试，放入samoles
         _ssim=[]
-
-
+        #_psnr=[]
+        print("start Val!")
         #Validation Stage
         with torch.no_grad():
-            for iteration, (img_clean, img_haze,img_depth) in enumerate(val_loader):
+            for iteration1, (img_clean, img_haze,img_depth) in enumerate(val_loader):
+                print("va1 : %s"%str(iteration1))
                 img_clean = img_clean.cuda()
                 img_haze = img_haze.cuda()
                 img_depth = img_depth.cuda()
@@ -117,21 +120,25 @@ def train(config):
                 
                 _s = comput_ssim(img_clean,clean_image)#计算ssim值
                 _ssim.append(_s.item())
+                #_p = PSNR(clean_image,img_clean)
+                #if _p!=100:_psnr.append(_p)
                 torchvision.utils.save_image(torch.cat((img_haze,img_clean,clean_image), 0),
-                                             config.sample_output_folder + "/epoch%s"%epoch +"/"+ str(iteration + 1) + ".jpg")
+                                             config.sample_output_folder + "/epoch%s"%epoch +"/"+ str(iteration1 + 1) + ".jpg")
+                torchvision.utils.save_image(clean_image,config.sample_output_folder + "/epoch%s" % epoch + "/" + str(iteration1 + 1) + ".jpg")
             _ssim = np.array(_ssim)
-
+            
             print("-----The %i Epoch mean-ssim is :%f-----" %(epoch,np.mean(_ssim)))
-            with open("trainlog/indoor/%srelu.log" % config.lossfunc, "a+", encoding="utf-8") as f:
-                s = "The %i Epoch mean-ssim is :%f" %(epoch,np.mean(_ssim))+ "\n"
+            #print("-----The %i Epoch mean-psnr is :%f-----" %(epoch,np.mean(_psnr)))
+            with open("trainlog/outdoor/%s%s.log" % (config.lossfunc,config.actfuntion), "a+", encoding="utf-8") as f:
+                s = "[%i,%f]" %(epoch,np.mean(_ssim))+ "\n"
                 f.write(s)
             #indexX.append(epoch+1)
             #indexY.append(np.mean(_ssim))
         #print(indexX,indexY)
         #plt.plot(indexX,indexY,linewidth=2)
         #plt.pause(0.1)
-    #plt.savefig("trainlog/indoor/%srelu.png" % (config.lossfunc))
-    torch.save(dehaze_net.state_dict(), config.snapshots_folder + "DEPTHV2.pth")
+    #plt.savefig("trainlog/%s%s.png" % (config.lossfunc,config.actfuntion))
+    torch.save(dehaze_net.state_dict(), config.snapshots_folder + "MSDFN.pth")
 
 if __name__ == "__main__":
     """
@@ -145,23 +152,28 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # Input Parameters
-    parser.add_argument('--orig_images_path', type=str, default="dataset/testdataset/indoor/gt/")
-    parser.add_argument('--hazy_images_path', type=str, default="dataset/testdataset/indoor/hazy/")
-    parser.add_argument('--label_images_path', type=str, default="dataset/testdataset/indoor/depth/")
+    parser.add_argument('--orig_images_path', type=str, default="dataset/indoor/gt/")
+    parser.add_argument('--hazy_images_path', type=str, default="dataset/indoor/hazy/")
+    parser.add_argument('--label_images_path', type=str, default="dataset/indoor/depth/")
 
-    parser.add_argument('--lr', type=float, default=0.00008)
+    parser.add_argument('--orig_images_path_val', type=str, default="dataset/testdataset/indoor/gt/")
+    parser.add_argument('--hazy_images_path_val', type=str, default="dataset/testdataset/indoor/hazy/")
+    parser.add_argument('--label_images_path_val', type=str, default="dataset/testdataset/indoor/depth/")
+
+    parser.add_argument('--lr', type=float, default=0.0001)
     parser.add_argument('--grad_clip_norm', type=float, default=0.1)
-    parser.add_argument('--num_epochs', type=int, default=40)
+    parser.add_argument('--num_epochs', type=int, default=20)
     parser.add_argument('--train_batch_size', type=int, default=4)
     parser.add_argument('--val_batch_size', type=int, default=1)
     parser.add_argument('--num_workers', type=int, default=0)
     parser.add_argument('--display_iter', type=int, default=1)
     parser.add_argument('--snapshot_iter', type=int, default=100)
-    parser.add_argument('--snapshots_folder', type=str, default="trained_model/indoor/relu/")
-    parser.add_argument('--sample_output_folder', type=str, default="sample/indoor/relu")
-    parser.add_argument('--in_or_out', type=str, default="indoor")
+    parser.add_argument('--snapshots_folder', type=str, default="trained_model/indoor/drelu-A/")
+    parser.add_argument('--sample_output_folder', type=str, default="sample/indoor/drelu-A")
+    parser.add_argument('--in_or_out', type=str, default="outdoor")
     parser.add_argument('--lossfunc', type=str, default="SSIM",help="choose Loss Function(MSE or -SSIM-b1-n10-aodnet).")
-    parser.add_argument('--cudaid', type=str, default="6",help="choose cuda device id 0-7).")
+    parser.add_argument('--actfuntion', type=str, default="drelu-A",help="drelu or relu")
+    parser.add_argument('--cudaid', type=str, default="7",help="choose cuda device id 0-7).")
 
     config = parser.parse_args()
 
@@ -169,6 +181,11 @@ if __name__ == "__main__":
         config.orig_images_path = 'dataset/outdoor/gt/'
         config.hazy_images_path = 'dataset/outdoor/hazy/'
         config.label_images_path = 'dataset/outdoor/depth/'
+        config.orig_images_path_val = 'dataset/testdataset/outdoor/gt/'
+        config.hazy_images_path_val = 'dataset/testdataset/outdoor/hazy/'
+        config.label_images_path_val = 'dataset/testdataset/outdoor/depth/'
+        config.snapshots_folder = "trained_model/outdoor/drelu-A/"
+        config.sample_output_folder = "sample/outdoor/drelu-A"
 
     os.environ['CUDA_VISIBLE_DEVICES'] = config.cudaid
 
