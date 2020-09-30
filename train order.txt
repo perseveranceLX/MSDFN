@@ -1,0 +1,1 @@
+python train_drelu.py --cudaid='1' --snapshots_folder='trained_model/drelu/' --sample_output_folder='sample/drelu' --actfuntion='drelu'
