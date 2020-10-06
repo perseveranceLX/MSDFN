@@ -4,13 +4,12 @@ import os
 import argparse
 import time
 import dataloader
-import model_depth_Drelu
+import model_depth_Drelu as model
 from SSIM import SSIM
 import torchvision
 import matplotlib.pyplot as plt
-import torch.nn as nn
+
 import numpy as np
-#from PSNR import PSNR
 
 def weights_init(m):
     classname = m.__class__.__name__
@@ -22,18 +21,16 @@ def weights_init(m):
 
 def train(config):
 
-    dehaze_net = model_depth_Drelu.MSDFN().cuda()
-    #dehaze_net.apply(weights_init)
-    dehaze_net.load_state_dict(torch.load("/home/amax/share/FGD/MSDFN/trained_model/outdoor/drelu-A/Epoch0.pth"))
+    dehaze_net = model.MSDFN().cuda()
+    dehaze_net.apply(weights_init)
+    #dehaze_net.load_state_dict(torch.load("/home/amax/share/FGD/MSDFN/trained_model/outdoor/drelu-A/Epoch0.pth"))
     train_dataset = dataloader.dehazing_loader(config.orig_images_path,config.hazy_images_path,config.label_images_path)
     val_dataset = dataloader.dehazing_loader(config.orig_images_path_val,config.hazy_images_path_val,config.label_images_path_val, mode="val")
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=config.train_batch_size, shuffle=True, num_workers=config.num_workers, pin_memory=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=config.val_batch_size, shuffle=False,num_workers=config.num_workers, pin_memory=True)
 
-    if config.lossfunc == "MSE":
-        criterion = nn.MSELoss().cuda()
-    else:
-        criterion = SSIM()
+
+    criterion = SSIM()
     comput_ssim = SSIM()
     
     dehaze_net.train()
@@ -97,16 +94,9 @@ def train(config):
                     raise e
 
 
-        # plt.pause(0.1)
-        # plt.plot(indexY, indexX)
 
-        #plt.savefig("IRDN/%iepoch.png" % epoch)                                                                        #early——stop机制
-        # if zt == 0 and Iters >= 700:
-        #     break
-
-        #每个epoch完成后测试，放入samoles
         _ssim=[]
-        #_psnr=[]
+
         print("start Val!")
         #Validation Stage
         with torch.no_grad():
@@ -118,26 +108,24 @@ def train(config):
 
                 clean_image = dehaze_net(img_haze, img_depth)
                 
-                _s = comput_ssim(img_clean,clean_image)#计算ssim值
+                _s = comput_ssim(img_clean,clean_image)
                 _ssim.append(_s.item())
-                #_p = PSNR(clean_image,img_clean)
-                #if _p!=100:_psnr.append(_p)
                 torchvision.utils.save_image(torch.cat((img_haze,img_clean,clean_image), 0),
                                              config.sample_output_folder + "/epoch%s"%epoch +"/"+ str(iteration1 + 1) + ".jpg")
                 torchvision.utils.save_image(clean_image,config.sample_output_folder + "/epoch%s" % epoch + "/" + str(iteration1 + 1) + ".jpg")
             _ssim = np.array(_ssim)
             
             print("-----The %i Epoch mean-ssim is :%f-----" %(epoch,np.mean(_ssim)))
-            #print("-----The %i Epoch mean-psnr is :%f-----" %(epoch,np.mean(_psnr)))
-            with open("trainlog/outdoor/%s%s.log" % (config.lossfunc,config.actfuntion), "a+", encoding="utf-8") as f:
+
+            with open("trainlog/%s%s.log" % (config.lossfunc,config.actfuntion), "a+", encoding="utf-8") as f:
                 s = "[%i,%f]" %(epoch,np.mean(_ssim))+ "\n"
                 f.write(s)
-            #indexX.append(epoch+1)
-            #indexY.append(np.mean(_ssim))
-        #print(indexX,indexY)
-        #plt.plot(indexX,indexY,linewidth=2)
-        #plt.pause(0.1)
-    #plt.savefig("trainlog/%s%s.png" % (config.lossfunc,config.actfuntion))
+            indexX.append(epoch+1)
+            indexY.append(np.mean(_ssim))
+        print(indexX,indexY)
+        plt.plot(indexX,indexY,linewidth=2)
+        plt.pause(0.1)
+    plt.savefig("trainlog/%s%s.png" % (config.lossfunc,config.actfuntion))
     torch.save(dehaze_net.state_dict(), config.snapshots_folder + "MSDFN.pth")
 
 if __name__ == "__main__":
@@ -152,13 +140,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # Input Parameters
-    parser.add_argument('--orig_images_path', type=str, default="dataset/indoor/gt/")
-    parser.add_argument('--hazy_images_path', type=str, default="dataset/indoor/hazy/")
-    parser.add_argument('--label_images_path', type=str, default="dataset/indoor/depth/")
+    parser.add_argument('--orig_images_path', type=str, default="dataset/outdoor/gt/")
+    parser.add_argument('--hazy_images_path', type=str, default="dataset/outdoor/hazy/")
+    parser.add_argument('--label_images_path', type=str, default="dataset/outdoor/depth/")
 
-    parser.add_argument('--orig_images_path_val', type=str, default="dataset/testdataset/indoor/gt/")
-    parser.add_argument('--hazy_images_path_val', type=str, default="dataset/testdataset/indoor/hazy/")
-    parser.add_argument('--label_images_path_val', type=str, default="dataset/testdataset/indoor/depth/")
+    parser.add_argument('--orig_images_path_val', type=str, default="dataset/testdataset/outdoor/gt/")
+    parser.add_argument('--hazy_images_path_val', type=str, default="dataset/testdataset/outdoor/hazy/")
+    parser.add_argument('--label_images_path_val', type=str, default="dataset/testdataset/outdoor/depth/")
 
     parser.add_argument('--lr', type=float, default=0.0001)
     parser.add_argument('--grad_clip_norm', type=float, default=0.1)
@@ -168,24 +156,16 @@ if __name__ == "__main__":
     parser.add_argument('--num_workers', type=int, default=0)
     parser.add_argument('--display_iter', type=int, default=1)
     parser.add_argument('--snapshot_iter', type=int, default=100)
-    parser.add_argument('--snapshots_folder', type=str, default="trained_model/indoor/drelu-A/")
-    parser.add_argument('--sample_output_folder', type=str, default="sample/indoor/drelu-A")
+    parser.add_argument('--snapshots_folder', type=str, default="trained_model/outdoor/drelu-B/")
+    parser.add_argument('--sample_output_folder', type=str, default="sample/outdoor/drelu-B")
     parser.add_argument('--in_or_out', type=str, default="outdoor")
     parser.add_argument('--lossfunc', type=str, default="SSIM",help="choose Loss Function(MSE or -SSIM-b1-n10-aodnet).")
-    parser.add_argument('--actfuntion', type=str, default="drelu-A",help="drelu or relu")
-    parser.add_argument('--cudaid', type=str, default="7",help="choose cuda device id 0-7).")
+    parser.add_argument('--actfuntion', type=str, default="drelu-B",help="drelu or relu")
+    parser.add_argument('--cudaid', type=str, default="0",help="choose cuda device id 0-7).")
 
     config = parser.parse_args()
 
-    if config.in_or_out == 'outdoor':
-        config.orig_images_path = 'dataset/outdoor/gt/'
-        config.hazy_images_path = 'dataset/outdoor/hazy/'
-        config.label_images_path = 'dataset/outdoor/depth/'
-        config.orig_images_path_val = 'dataset/testdataset/outdoor/gt/'
-        config.hazy_images_path_val = 'dataset/testdataset/outdoor/hazy/'
-        config.label_images_path_val = 'dataset/testdataset/outdoor/depth/'
-        config.snapshots_folder = "trained_model/outdoor/drelu-A/"
-        config.sample_output_folder = "sample/outdoor/drelu-A"
+
 
     os.environ['CUDA_VISIBLE_DEVICES'] = config.cudaid
 
