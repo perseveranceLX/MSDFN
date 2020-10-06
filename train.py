@@ -130,10 +130,9 @@ def train(config):
 
 if __name__ == "__main__":
     """
-    	当前，输入为有雾图像和无雾图像，有雾图像和无雾图像都转为灰度图进人网络
-    	:param orig_images_path:深度图下采样，当前用有雾图像的灰度图代替
+    	:param orig_images_path:无雾图像
     	:param hazy_images_path:有雾彩色图像
-    	:param label_images_path:深度图，用无雾图像灰度图代替
+    	:param label_images_path:深度图
     """
 
     torch.cuda.empty_cache()
