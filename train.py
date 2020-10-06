@@ -23,7 +23,6 @@ def train(config):
 
     dehaze_net = model.MSDFN().cuda()
     dehaze_net.apply(weights_init)
-    #dehaze_net.load_state_dict(torch.load("/home/amax/share/FGD/MSDFN/trained_model/outdoor/drelu-A/Epoch0.pth"))
     train_dataset = dataloader.dehazing_loader(config.orig_images_path,config.hazy_images_path,config.label_images_path)
     val_dataset = dataloader.dehazing_loader(config.orig_images_path_val,config.hazy_images_path_val,config.label_images_path_val, mode="val")
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=config.train_batch_size, shuffle=True, num_workers=config.num_workers, pin_memory=True)
@@ -36,8 +35,8 @@ def train(config):
     dehaze_net.train()
 
     zt = 1
-    Iters = 0                                                                                                           #计数损失曲线用
-    indexX = []                                                                                                    #计数损失曲线用
+    Iters = 0                                                                                                           
+    indexX = []                                                                                                    
     indexY = []
     for epoch in range(1,config.num_epochs):
         if epoch == 0:
