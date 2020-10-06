@@ -2,9 +2,12 @@
 
 ## Dependencies and Installation
 
-- python3
-- pytorch1.5
+- python 3.7
+- pytorch 1.5
 - NVIDIA GPU+CUDA10.1
+- PIL
+- matplotlib
+- numpy
 
 ## TEST
 We provide [TESTSET](https://pan.baidu.com/s/1Rkj-lskGT2UmWFoOtPeNmw). pw:y8ni 
