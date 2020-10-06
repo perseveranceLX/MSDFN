@@ -10,7 +10,7 @@
 - numpy
 
 ## TEST
-We provide [TESTSET](https://pan.baidu.com/s/1Rkj-lskGT2UmWFoOtPeNmw)with code::y8ni .
+We provide [TESTSET](https://pan.baidu.com/s/1Rkj-lskGT2UmWFoOtPeNmw) with code::y8ni .
 Trained_models are available at [baidudrive](https://pan.baidu.com/s/1lLI-FEZAnqacpTV5nJ6K-w) with code:5yrr .
 
 `python test.py`
