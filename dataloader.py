@@ -53,7 +53,7 @@ class dehazing_loader(data.Dataset):
     def __init__(self, orig_images_path, hazy_images_path,label_images_path, mode='train'):
 
         self.train_list = populate_train_list(orig_images_path, hazy_images_path,label_images_path)
-        self.val_list = populate_train_list(orig_images_path, hazy_images_path,label_images_path)
+        self.val_list = populate_val_list(orig_images_path, hazy_images_path,label_images_path)
 
         if mode == 'train':
             self.data_list = self.train_list
